@@ -1,6 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength } from 'class-validator';
-import { UserRole } from 'src/utils/user-role';
+import { UserRole } from '../../utils/user-role';
 
 export class CreateUserDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
