@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dw-swe-postgres
+    environment:
+      POSTGRES_DB: dw_swe_assignment
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d dw_swe_assignment']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: dw-swe-server
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/dw_swe_assignment
+    ports:
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npm run db:migrate:prod && node dist/main.js"
+
+volumes:
+  postgres_data:
