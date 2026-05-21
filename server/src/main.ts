@@ -9,6 +9,10 @@ async function bootstrap() {
   const port = config.getOrThrow<number>('app.port');
 
   app.enableShutdownHooks();
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

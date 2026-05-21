@@ -16,7 +16,12 @@ export default [
       },
       globals: {
         process: 'readonly',
-        console: 'readonly'
+        console: 'readonly',
+        describe: 'readonly',
+        beforeEach: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        jest: 'readonly'
       }
     },
     plugins: {

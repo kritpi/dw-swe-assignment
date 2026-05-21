@@ -15,7 +15,7 @@ export class AuthService {
   ) {}
 
   async login(dto: UserLoginDto): Promise<LoginResponseDto> {
-    const user = await this.validateCredentials(dto.email, dto.password);
+    const user = await this.validateCredentials(dto.email, dto.password, dto.role);
     const jwtPayload: JwtPayload = {
       sub: user.id,
       email: user.email,
@@ -28,10 +28,10 @@ export class AuthService {
     };
   }
 
-  private async validateCredentials(email: string, password: string): Promise<User> {
+  private async validateCredentials(email: string, password: string, role: User['role']): Promise<User> {
     const user = await this.authRepository.findByEmail(email.trim().toLowerCase());
 
-    if (!user || !(await compare(password, user.password))) {
+    if (!user || !(await compare(password, user.password)) || user.role !== role) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
