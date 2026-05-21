@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { RegisterForm } from "@/components/auth/register-form";
+import { PortalApp } from "../portal-client";
 
 export default function RegisterPage() {
   return (
     <Suspense>
-      <RegisterForm />
+      <PortalApp initialView="signup" />
     </Suspense>
   );
 }

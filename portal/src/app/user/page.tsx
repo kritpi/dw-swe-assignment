@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import { PortalApp } from "../portal-client";
 
-export default function LoginPage() {
+export default function UserPage() {
   return (
     <Suspense>
-      <PortalApp initialView="login" />
+      <PortalApp initialView="dashboard" initialRole="USER" />
     </Suspense>
   );
 }

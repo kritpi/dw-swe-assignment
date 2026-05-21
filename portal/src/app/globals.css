@@ -268,6 +268,233 @@ button:disabled {
   color: var(--accent);
 }
 
+.dashboard {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 8px;
+}
+
+.sidebar h1 {
+  font-size: 40px;
+  font-weight: 700;
+  padding: 0 16px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 44px;
+}
+
+.nav-item {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  display: block;
+  font-size: 20px;
+  padding: 18px;
+  text-align: left;
+}
+
+.nav-item--active,
+.nav-item:hover {
+  background: #eef8ff;
+}
+
+.dashboard-content {
+  padding: 64px 40px;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 35px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 auto 48px;
+  max-width: 1120px;
+}
+
+.metric-grid--user {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metric-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-height: 168px;
+  padding: 28px;
+  text-align: center;
+}
+
+.metric-card span {
+  display: block;
+  font-size: 20px;
+}
+
+.metric-card strong {
+  display: block;
+  font-size: 58px;
+  line-height: 1.2;
+  margin-top: 14px;
+}
+
+.dashboard-stack {
+  display: grid;
+  gap: 32px;
+  margin: 0 auto;
+  max-width: 1120px;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 40px;
+}
+
+.panel h2 {
+  border-bottom: 1px solid var(--border);
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+}
+
+.form-row {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 24px;
+}
+
+.panel-action {
+  display: block;
+  margin-left: auto;
+  margin-top: 32px;
+  min-width: 160px;
+}
+
+.concert-grid {
+  display: grid;
+  gap: 32px;
+}
+
+.concert-card p {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.seat-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin: 0;
+}
+
+.seat-summary div {
+  min-width: 86px;
+}
+
+.seat-summary dt {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.seat-summary dd {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+.concert-footer {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 28px;
+}
+
+.concert-footer button {
+  background: var(--accent);
+  border: 0;
+  border-radius: 4px;
+  color: white;
+  font-weight: 700;
+  min-width: 120px;
+  padding: 14px 18px;
+}
+
+.concert-footer button.danger-button {
+  background: #d92d20;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.history-table {
+  border-collapse: collapse;
+  min-width: 760px;
+  width: 100%;
+}
+
+.history-table th,
+.history-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.history-table th {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.history-table td {
+  font-size: 16px;
+}
+
+.action-badge {
+  border-radius: 4px;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 76px;
+  padding: 7px 10px;
+  text-align: center;
+}
+
+.action-badge--reserve {
+  background: #e8f7ef;
+  color: #067647;
+}
+
+.action-badge--cancel {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.empty-panel {
+  color: var(--muted);
+}
+
 .toast {
   align-items: center;
   background: #ffffff;
@@ -298,7 +525,10 @@ button:disabled {
 
 @media (max-width: 900px) {
   .auth-screen,
-  .role-grid {
+  .dashboard,
+  .role-grid,
+  .metric-grid,
+  .form-row {
     grid-template-columns: 1fr;
   }
 
@@ -319,5 +549,27 @@ button:disabled {
 
   .role-card em {
     margin-top: 32px;
+  }
+
+  .sidebar {
+    border-bottom: 1px solid var(--border);
+    border-right: 0;
+    padding: 24px;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+
+  .dashboard-content {
+    padding: 32px 20px;
+  }
+
+  .concert-footer,
+  .form-switch {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
