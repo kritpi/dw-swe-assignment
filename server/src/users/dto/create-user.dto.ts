@@ -1,10 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength } from 'class-validator';
-
-export enum CreateUserRole {
-  Admin = 'ADMIN',
-  User = 'USER',
-}
+import { UserRole } from 'src/utils/user-role';
 
 export class CreateUserDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -21,6 +17,6 @@ export class CreateUserDto {
   password!: string;
 
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
-  @IsEnum(CreateUserRole)
-  role!: CreateUserRole;
+  @IsEnum(UserRole)
+  role!: UserRole;
 }
