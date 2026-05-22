@@ -25,11 +25,12 @@ services:
       NODE_ENV: production
       PORT: 8080
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/dw_swe_assignment
+      JWT_SECRET: change-me-in-production
+      CORS_ORIGINS: http://localhost:3000
     ports:
       - '8080:8080'
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     command: sh -c "npm run db:migrate:prod && node dist/main.js"
 
   portal:
@@ -37,12 +38,12 @@ services:
       context: ./portal
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8080
+        NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
     container_name: dw-swe-portal
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
     ports:
       - '3000:3000'
     depends_on:

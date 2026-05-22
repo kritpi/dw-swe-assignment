@@ -8,6 +8,13 @@
       "when": 1779337097906,
       "tag": "0000_handy_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779439200000,
+      "tag": "0001_available_seats",
+      "breakpoints": true
     }
   ]
 }

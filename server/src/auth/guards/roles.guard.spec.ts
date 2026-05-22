@@ -42,9 +42,7 @@ function createRequest(role: UserRole): TestRequest {
   return {
     user: {
       sub: 'user-id',
-      email: 'user@example.com',
       role,
-      iat: 1_766_000_000,
     },
   };
 }

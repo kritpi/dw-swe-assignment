@@ -1,18 +1,34 @@
-# DW SWE Assignment
-
-Concert reservation app with a Next.js portal, NestJS API, and PostgreSQL database.
+# DW SWE Assignment 
 
 ## Setup
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 - Portal: http://localhost:3000
-- API: http://localhost:8080
+- API: http://localhost:8080/api/v1
 - PostgreSQL: localhost:5432
 
-The API container runs Drizzle migrations on startup.
+The API container runs Drizzle migrations on startup. Docker Compose waits for PostgreSQL to become healthy, then starts the API, waits for the API healthcheck, and finally starts the portal.
+
+### Environment Variables
+
+Server variables are listed in `server/.env.example`:
+
+- `NODE_ENV`
+- `PORT`
+- `DATABASE_URL`
+- `JWT_SECRET` required
+- `JWT_EXPIRES_IN`
+- `AUTH_COOKIE_NAME`
+- `CORS_ORIGINS`
+- `BCRYPT_SALT_ROUNDS`
+
+Portal variables are listed in `portal/.env.example`:
+
+- `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8080/api/v1`
+
 
 ## Architecture
 
@@ -22,19 +38,21 @@ portal/  Next.js UI
 
 server/  NestJS API
   src/
-  ├─ main.ts                 App bootstrap
+  ├─ main.ts                 App bootstrap, /api/v1 prefix, security headers
   ├─ app.module.ts           Root module wiring
-  ├─ auth/                   Login, JWT, roles, guards
+  ├─ auth/                   Login, JWT, roles, guards, login throttling
   │  ├─ dto/                 Auth request/response shapes
-  │  ├─ guards/              JWT and role guards
+  │  ├─ guards/              JWT, role, and login throttle guards
   │  ├─ decorators/          Role metadata decorator
   │  └─ types/               Auth request/JWT payload types
   ├─ users/                  User registration and lookup
   │  └─ dto/                 User input DTOs
-  ├─ concerts/               Concert CRUD/read logic
+  ├─ concerts/               Concert CRUD/read logic with pagination
   │  └─ dto/                 Concert input/output DTOs
-  ├─ reservations/           Booking and reservation history
+  ├─ reservations/           Booking, cancellation, personal/admin history
   │  └─ dto/                 Reservation response DTOs
+  ├─ health/                 API healthcheck
+  ├─ common/                 Shared pagination, errors, filters
   ├─ db/                     Drizzle database module
   │  └─ schema/              Tables: users, concerts, reservations
   ├─ config/                 App and database config
@@ -43,13 +61,11 @@ server/  NestJS API
 postgres  PostgreSQL 16 database
 ```
 
-Runtime flow: browser -> Next.js portal -> NestJS controllers/services/repositories -> PostgreSQL.
-
 ## Libraries
 
 - Frontend: Next.js 16, React 19, TanStack Query, axios, Tailwind CSS
 - Backend: NestJS 10, Drizzle ORM, PostgreSQL driver, JWT, bcryptjs, class-validator
-- Tooling: TypeScript, ESLint, Jest, ts-jest, Docker Compose
+- Tooling: TypeScript, Jest, ts-jest, Docker Compose, GitHub Actions
 
 ## Tests
 
@@ -62,11 +78,35 @@ npm test
 # API coverage
 npm run test:cov
 
-# Portal lint check
+# API lint/build
+npm run lint
+npm run build
+
+# Portal lint/build
 cd ../portal
 npm install
 npm run lint
+npm run build
 ```
+
+CI runs server lint/tests and portal lint/build on push and pull request.
+
+## Docker And Migrations
+
+The server image runs as the non-root `node` user and starts with:
+
+```bash
+npm run db:migrate:prod && node dist/main.js
+```
+
+The portal image also runs as the non-root `node` user and serves the Next.js standalone build.
+
+Database data is persisted in the `postgres_data` volume. To reset the app:
+
+```bash
+docker compose down -v
+```
+
 
 ## Bonus Tasks
 

@@ -12,6 +12,7 @@ describe('ConcertsService', () => {
     softDelete: jest.Mock;
     listForAdmin: jest.Mock;
     listForUser: jest.Mock;
+    countActive: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -20,6 +21,7 @@ describe('ConcertsService', () => {
       softDelete: jest.fn(),
       listForAdmin: jest.fn(),
       listForUser: jest.fn(),
+      countActive: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -68,20 +70,27 @@ describe('ConcertsService', () => {
   it('listForAdmin_existingConcerts_returnsRepositoryResult', async () => {
     const expectedConcerts = [createConcertResponse()];
     concertsRepository.listForAdmin.mockResolvedValue(expectedConcerts);
+    concertsRepository.countActive.mockResolvedValue(1);
 
-    const actualConcerts = await service.listForAdmin();
+    const actualConcerts = await service.listForAdmin({ page: 1, limit: 20 });
 
-    expect(actualConcerts).toBe(expectedConcerts);
+    expect(actualConcerts.data).toBe(expectedConcerts);
+    expect(actualConcerts.meta.total).toBe(1);
   });
 
   it('listForUser_existingConcerts_returnsRepositoryResult', async () => {
     const expectedConcerts = [createConcertResponse({ hasReserved: true })];
     concertsRepository.listForUser.mockResolvedValue(expectedConcerts);
+    concertsRepository.countActive.mockResolvedValue(1);
 
-    const actualConcerts = await service.listForUser('user-id');
+    const actualConcerts = await service.listForUser('user-id', { page: 1, limit: 20 });
 
-    expect(actualConcerts).toBe(expectedConcerts);
-    expect(concertsRepository.listForUser).toHaveBeenCalledWith('user-id');
+    expect(actualConcerts.data).toBe(expectedConcerts);
+    expect(concertsRepository.listForUser).toHaveBeenCalledWith('user-id', {
+      page: 1,
+      limit: 20,
+      offset: 0,
+    });
   });
 });
 

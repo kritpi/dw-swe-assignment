@@ -107,8 +107,6 @@ function createContext(request: TestRequest): ExecutionContext {
 function createPayload(): JwtPayload {
   return {
     sub: 'user-id',
-    email: 'user@example.com',
     role: UserRole.User,
-    iat: 1_766_000_000,
   };
 }

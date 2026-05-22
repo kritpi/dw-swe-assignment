@@ -13,6 +13,7 @@ describe('ReservationsController', () => {
     reserveSeat: jest.Mock;
     cancelReservation: jest.Mock;
     listHistory: jest.Mock;
+    listMyHistory: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -20,6 +21,7 @@ describe('ReservationsController', () => {
       reserveSeat: jest.fn(),
       cancelReservation: jest.fn(),
       listHistory: jest.fn(),
+      listMyHistory: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -75,10 +77,22 @@ describe('ReservationsController', () => {
     ];
     reservationsService.listHistory.mockResolvedValue(expectedHistory);
 
-    const actualHistory = await controller.listHistory();
+    const query = { page: 1, limit: 20 };
+    const actualHistory = await controller.listHistory(query);
 
     expect(actualHistory).toBe(expectedHistory);
-    expect(reservationsService.listHistory).toHaveBeenCalledWith();
+    expect(reservationsService.listHistory).toHaveBeenCalledWith(query);
+  });
+
+  it('listMyHistory_authenticatedUser_returnsServiceResult', async () => {
+    const expectedHistory = { data: [], meta: { page: 1, limit: 20, total: 0, totalPages: 0 } };
+    reservationsService.listMyHistory.mockResolvedValue(expectedHistory);
+    const query = { page: 1, limit: 20 };
+
+    const actualHistory = await controller.listMyHistory(createRequest('user-id'), query);
+
+    expect(actualHistory).toBe(expectedHistory);
+    expect(reservationsService.listMyHistory).toHaveBeenCalledWith('user-id', query);
   });
 });
 
@@ -86,9 +100,7 @@ function createRequest(userId: string): AuthenticatedRequest {
   return {
     user: {
       sub: userId,
-      email: `${userId}@example.com`,
       role: UserRole.User,
-      iat: 1_766_000_000,
     },
   } as AuthenticatedRequest;
 }

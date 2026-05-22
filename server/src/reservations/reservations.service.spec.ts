@@ -1,22 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ErrorCode } from '../common/errors/error-code';
 import { DRIZZLE } from '../db/database.constants';
 import { ReservationsRepository } from './reservations.repository';
 import { ReservationsService } from './reservations.service';
-import type { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
 
 describe('ReservationsService', () => {
   let service: ReservationsService;
   let db: { transaction: jest.Mock };
   let tx: Record<string, never>;
   let reservationsRepository: {
-    findConcertForUpdate: jest.Mock;
-    countReservedSeats: jest.Mock;
-    findReservationForUpdate: jest.Mock;
+    findConcert: jest.Mock;
+    decrementAvailableSeat: jest.Mock;
+    incrementAvailableSeat: jest.Mock;
+    findActiveReservationForUpdate: jest.Mock;
     insertReservation: jest.Mock;
-    updateReservationStatus: jest.Mock;
+    cancelActiveReservation: jest.Mock;
     insertReservationHistory: jest.Mock;
     listHistoryRecords: jest.Mock;
+    countHistoryRecords: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -25,13 +26,15 @@ describe('ReservationsService', () => {
       transaction: jest.fn((callback: (transaction: typeof tx) => Promise<void>) => callback(tx)),
     };
     reservationsRepository = {
-      findConcertForUpdate: jest.fn(),
-      countReservedSeats: jest.fn(),
-      findReservationForUpdate: jest.fn(),
+      findConcert: jest.fn(),
+      decrementAvailableSeat: jest.fn(),
+      incrementAvailableSeat: jest.fn(),
+      findActiveReservationForUpdate: jest.fn(),
       insertReservation: jest.fn(),
-      updateReservationStatus: jest.fn(),
+      cancelActiveReservation: jest.fn(),
       insertReservationHistory: jest.fn(),
       listHistoryRecords: jest.fn(),
+      countHistoryRecords: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -51,76 +54,52 @@ describe('ReservationsService', () => {
     service = module.get<ReservationsService>(ReservationsService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('reserveSeat_missingConcert_throwsConcertNotFound', async () => {
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue(null);
+    reservationsRepository.decrementAvailableSeat.mockResolvedValue(false);
+    reservationsRepository.findConcert.mockResolvedValue(null);
+
+    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.ConcertNotFound,
+    });
   });
 
-  it('reserveSeat_missingConcert_throwsNotFoundException', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue(null);
+  it('reserveSeat_fullConcert_throwsConcertSoldOut', async () => {
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue(null);
+    reservationsRepository.decrementAvailableSeat.mockResolvedValue(false);
+    reservationsRepository.findConcert.mockResolvedValue({ id: 'concert-id', availableSeats: 0 });
 
-    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toThrow(NotFoundException);
+    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.ConcertSoldOut,
+    });
   });
 
-  it('reserveSeat_fullConcert_throwsConflictException', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.countReservedSeats.mockResolvedValue(2);
-
-    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-  });
-
-  it('reserveSeat_alreadyReserved_throwsConflictException', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.countReservedSeats.mockResolvedValue(1);
-    reservationsRepository.findReservationForUpdate.mockResolvedValue({
+  it('reserveSeat_alreadyReserved_throwsAlreadyReserved', async () => {
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue({
       id: 'reservation-id',
       status: 'RESERVED',
     });
 
-    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-  });
-
-  it('reserveSeat_canceledReservation_updatesReservationAndCreatesHistory', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.countReservedSeats.mockResolvedValue(1);
-    reservationsRepository.findReservationForUpdate.mockResolvedValue({
-      id: 'reservation-id',
-      status: 'CANCELED',
+    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.AlreadyReserved,
     });
-
-    await expect(service.reserveSeat('user-id', 'concert-id')).resolves.toBeUndefined();
-
-    expect(reservationsRepository.updateReservationStatus).toHaveBeenCalledWith(
-      tx,
-      'reservation-id',
-      'RESERVED',
-    );
-    expect(reservationsRepository.insertReservation).not.toHaveBeenCalled();
-    expect(reservationsRepository.insertReservationHistory).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({
-        userId: 'user-id',
-        concertId: 'concert-id',
-        action: 'RESERVE',
-      }),
-    );
+    expect(reservationsRepository.decrementAvailableSeat).not.toHaveBeenCalled();
   });
 
-  it('reserveSeat_newReservation_insertsReservationAndCreatesHistory', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.countReservedSeats.mockResolvedValue(1);
-    reservationsRepository.findReservationForUpdate.mockResolvedValue(null);
+  it('reserveSeat_availableConcert_decrementsSeatInsertsReservationAndCreatesHistory', async () => {
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue(null);
+    reservationsRepository.decrementAvailableSeat.mockResolvedValue(true);
 
     await expect(service.reserveSeat('user-id', 'concert-id')).resolves.toBeUndefined();
 
+    expect(reservationsRepository.decrementAvailableSeat).toHaveBeenCalledWith(tx, 'concert-id');
     expect(reservationsRepository.insertReservation).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
         userId: 'user-id',
         concertId: 'concert-id',
-        status: 'RESERVED',
       }),
     );
-    expect(reservationsRepository.updateReservationStatus).not.toHaveBeenCalled();
     expect(reservationsRepository.insertReservationHistory).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -131,36 +110,70 @@ describe('ReservationsService', () => {
     );
   });
 
-  it('cancelReservation_missingConcert_throwsNotFoundException', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue(null);
+  it('reserveSeat_parallelRequests_onlyCapacitySucceeds', async () => {
+    let availableSeats = 2;
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue(null);
+    reservationsRepository.findConcert.mockResolvedValue({ id: 'concert-id', availableSeats: 0 });
+    reservationsRepository.decrementAvailableSeat.mockImplementation(async () => {
+      if (availableSeats <= 0) {
+        return false;
+      }
 
-    await expect(service.cancelReservation('user-id', 'concert-id')).rejects.toThrow(NotFoundException);
+      availableSeats -= 1;
+      return true;
+    });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, (_, index) => service.reserveSeat(`user-${index}`, 'concert-id')),
+    );
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(2);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(6);
+    expect(reservationsRepository.insertReservation).toHaveBeenCalledTimes(2);
   });
 
-  it('cancelReservation_withoutActiveReservation_throwsConflictException', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.findReservationForUpdate.mockResolvedValue({
+  it('reserveSeat_activeReservationRace_rollsBackWithAlreadyReserved', async () => {
+    reservationsRepository.findActiveReservationForUpdate.mockResolvedValue(null);
+    reservationsRepository.decrementAvailableSeat.mockResolvedValue(true);
+    reservationsRepository.insertReservation.mockRejectedValue({
+      code: '23505',
+      constraint: 'reservations_active_user_concert_unique',
+    });
+
+    await expect(service.reserveSeat('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.AlreadyReserved,
+    });
+  });
+
+  it('cancelReservation_missingConcert_throwsConcertNotFound', async () => {
+    reservationsRepository.findConcert.mockResolvedValue(null);
+
+    await expect(service.cancelReservation('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.ConcertNotFound,
+    });
+  });
+
+  it('cancelReservation_withoutActiveReservation_throwsNoActiveReservation', async () => {
+    reservationsRepository.findConcert.mockResolvedValue({ id: 'concert-id', availableSeats: 1 });
+    reservationsRepository.cancelActiveReservation.mockResolvedValue(null);
+
+    await expect(service.cancelReservation('user-id', 'concert-id')).rejects.toMatchObject({
+      code: ErrorCode.NoActiveReservation,
+    });
+  });
+
+  it('cancelReservation_activeReservation_cancelsAndIncrementsSeatAndCreatesHistory', async () => {
+    reservationsRepository.findConcert.mockResolvedValue({ id: 'concert-id', availableSeats: 1 });
+    reservationsRepository.cancelActiveReservation.mockResolvedValue({
       id: 'reservation-id',
       status: 'CANCELED',
     });
-
-    await expect(service.cancelReservation('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-  });
-
-  it('cancelReservation_activeReservation_updatesReservationAndCreatesHistory', async () => {
-    reservationsRepository.findConcertForUpdate.mockResolvedValue({ id: 'concert-id', totalSeat: 2 });
-    reservationsRepository.findReservationForUpdate.mockResolvedValue({
-      id: 'reservation-id',
-      status: 'RESERVED',
-    });
+    reservationsRepository.incrementAvailableSeat.mockResolvedValue(true);
 
     await expect(service.cancelReservation('user-id', 'concert-id')).resolves.toBeUndefined();
 
-    expect(reservationsRepository.updateReservationStatus).toHaveBeenCalledWith(
-      tx,
-      'reservation-id',
-      'CANCELED',
-    );
+    expect(reservationsRepository.cancelActiveReservation).toHaveBeenCalledWith(tx, 'user-id', 'concert-id');
+    expect(reservationsRepository.incrementAvailableSeat).toHaveBeenCalledWith(tx, 'concert-id');
     expect(reservationsRepository.insertReservationHistory).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -171,12 +184,13 @@ describe('ReservationsService', () => {
     );
   });
 
-  it('listHistory_existingHistory_returnsRepositoryResult', async () => {
+  it('listHistory_existingHistory_returnsPaginatedRepositoryResult', async () => {
+    const actionAt = new Date('2026-01-01T00:00:00.000Z');
     reservationsRepository.listHistoryRecords.mockResolvedValue([
       {
         id: 'history-id',
         action: 'CANCEL',
-        actionAt: new Date('2026-01-01T00:00:00.000Z'),
+        actionAt,
         userId: 'user-id',
         fullName: 'Test User',
         email: 'test@example.com',
@@ -184,24 +198,33 @@ describe('ReservationsService', () => {
         concertName: 'Live Night',
       },
     ]);
+    reservationsRepository.countHistoryRecords.mockResolvedValue(1);
 
-    const actualHistory = await service.listHistory();
+    const actualHistory = await service.listHistory({ page: 1, limit: 20 });
 
-    expect(actualHistory).toEqual<ReservationHistoryResponseDto[]>([
-      {
-        id: 'history-id',
-        action: 'CANCEL',
-        actionAt: new Date('2026-01-01T00:00:00.000Z'),
-        user: {
-          id: 'user-id',
-          fullName: 'Test User',
-          email: 'test@example.com',
+    expect(actualHistory).toEqual({
+      data: [
+        {
+          id: 'history-id',
+          action: 'CANCEL',
+          actionAt,
+          user: {
+            id: 'user-id',
+            fullName: 'Test User',
+            email: 'test@example.com',
+          },
+          concert: {
+            id: 'concert-id',
+            name: 'Live Night',
+          },
         },
-        concert: {
-          id: 'concert-id',
-          name: 'Live Night',
-        },
+      ],
+      meta: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
       },
-    ]);
+    });
   });
 });

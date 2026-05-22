@@ -51,20 +51,22 @@ describe('ConcertsController', () => {
     const expectedConcerts = [createConcertResponse({ hasReserved: true })];
     concertsService.listForUser.mockResolvedValue(expectedConcerts);
 
-    const actualConcerts = await controller.listForUser(createRequest('user-id'));
+    const query = { page: 1, limit: 20 };
+    const actualConcerts = await controller.listForUser(createRequest('user-id'), query);
 
     expect(actualConcerts).toBe(expectedConcerts);
-    expect(concertsService.listForUser).toHaveBeenCalledWith('user-id');
+    expect(concertsService.listForUser).toHaveBeenCalledWith('user-id', query);
   });
 
   it('listForAdmin_adminUser_returnsAdminConcerts', async () => {
     const expectedConcerts = [createConcertResponse()];
     concertsService.listForAdmin.mockResolvedValue(expectedConcerts);
 
-    const actualConcerts = await controller.listForAdmin();
+    const query = { page: 1, limit: 20 };
+    const actualConcerts = await controller.listForAdmin(query);
 
     expect(actualConcerts).toBe(expectedConcerts);
-    expect(concertsService.listForAdmin).toHaveBeenCalledWith();
+    expect(concertsService.listForAdmin).toHaveBeenCalledWith(query);
   });
 
   it('create_validDto_delegatesToServiceWithCreator', async () => {
@@ -90,9 +92,7 @@ function createRequest(userId: string): AuthenticatedRequest {
   return {
     user: {
       sub: userId,
-      email: `${userId}@example.com`,
       role: UserRole.User,
-      iat: 1_766_000_000,
     },
   } as AuthenticatedRequest;
 }

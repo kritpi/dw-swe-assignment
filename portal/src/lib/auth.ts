@@ -13,7 +13,7 @@ export type AuthUser = {
   sub?: string;
   id?: string;
   fullName?: string;
-  email: string;
+  email?: string;
   role: Role;
 };
 
@@ -30,5 +30,9 @@ export function getDashboardPath(role: Role) {
 }
 
 export function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
   return error instanceof Error ? error.message : "Something went wrong.";
 }

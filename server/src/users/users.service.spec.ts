@@ -1,6 +1,6 @@
-import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { hash } from 'bcryptjs';
+import { AppException } from '../common/errors/app.exception';
 import { UserRole } from '../utils/user-role';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
@@ -58,7 +58,7 @@ describe('UsersService', () => {
     hashMock.mockResolvedValue('hashed-password');
     usersRepository.create.mockRejectedValue({ code: '23505' });
 
-    await expect(service.create(createUserDto())).rejects.toThrow(ConflictException);
+    await expect(service.create(createUserDto())).rejects.toThrow(AppException);
   });
 
   it('create_repositoryFailsWithUnknownError_rethrowsError', async () => {

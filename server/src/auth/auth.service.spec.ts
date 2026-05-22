@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
 import { compare } from 'bcryptjs';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
 import { UserRole } from '../utils/user-role';
 import type { User } from '../db/schema';
+import { AppException } from '../common/errors/app.exception';
 
 jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
@@ -64,7 +64,6 @@ describe('AuthService', () => {
     expect(jwtService.sign).toHaveBeenCalledWith(
       expect.objectContaining({
         sub: user.id,
-        email: user.email,
         role: UserRole.User,
       }),
     );
@@ -96,7 +95,7 @@ describe('AuthService', () => {
         password: 'password123',
         role: UserRole.Admin,
       }),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(AppException);
     expect(jwtService.sign).not.toHaveBeenCalled();
   });
 
@@ -110,7 +109,7 @@ describe('AuthService', () => {
         password: 'wrong-password',
         role: UserRole.User,
       }),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(AppException);
     expect(jwtService.sign).not.toHaveBeenCalled();
   });
 });

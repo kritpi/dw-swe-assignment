@@ -15,41 +15,52 @@ describe('ReservationsRepository', () => {
     repository = new ReservationsRepository(db as never);
   });
 
-  it('findConcertForUpdate_missingConcert_returnsNull', async () => {
+  it('findConcert_missingConcert_returnsNull', async () => {
     executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.findConcertForUpdate(executor as never, 'missing-concert')).resolves.toBeNull();
-    expect(executor.execute).toHaveBeenCalledTimes(1);
+    await expect(repository.findConcert(executor as never, 'missing-concert')).resolves.toBeNull();
   });
 
-  it('findConcertForUpdate_existingConcert_returnsLockedConcert', async () => {
-    executor.execute.mockResolvedValue({ rows: [{ id: 'concert-id', totalSeat: 2 }] });
+  it('findConcert_existingConcert_returnsConcert', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'concert-id', availableSeats: 2 }] });
 
-    await expect(repository.findConcertForUpdate(executor as never, 'concert-id')).resolves.toEqual({
+    await expect(repository.findConcert(executor as never, 'concert-id')).resolves.toEqual({
       id: 'concert-id',
-      totalSeat: 2,
+      availableSeats: 2,
     });
   });
 
-  it('countReservedSeats_existingReservations_returnsCount', async () => {
-    executor.execute.mockResolvedValue({ rows: [{ count: 2 }] });
+  it('decrementAvailableSeat_updatedRow_returnsTrue', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'concert-id' }] });
 
-    await expect(repository.countReservedSeats(executor as never, 'concert-id')).resolves.toBe(2);
+    await expect(repository.decrementAvailableSeat(executor as never, 'concert-id')).resolves.toBe(true);
   });
 
-  it('findReservationForUpdate_missingReservation_returnsNull', async () => {
+  it('decrementAvailableSeat_noUpdatedRow_returnsFalse', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
+
+    await expect(repository.decrementAvailableSeat(executor as never, 'concert-id')).resolves.toBe(false);
+  });
+
+  it('incrementAvailableSeat_updatedRow_returnsTrue', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'concert-id' }] });
+
+    await expect(repository.incrementAvailableSeat(executor as never, 'concert-id')).resolves.toBe(true);
+  });
+
+  it('findActiveReservationForUpdate_missingReservation_returnsNull', async () => {
     executor.execute.mockResolvedValue({ rows: [] });
 
     await expect(
-      repository.findReservationForUpdate(executor as never, 'user-id', 'concert-id'),
+      repository.findActiveReservationForUpdate(executor as never, 'user-id', 'concert-id'),
     ).resolves.toBeNull();
   });
 
-  it('findReservationForUpdate_existingReservation_returnsReservation', async () => {
+  it('findActiveReservationForUpdate_existingReservation_returnsReservation', async () => {
     executor.execute.mockResolvedValue({ rows: [{ id: 'reservation-id', status: 'RESERVED' }] });
 
     await expect(
-      repository.findReservationForUpdate(executor as never, 'user-id', 'concert-id'),
+      repository.findActiveReservationForUpdate(executor as never, 'user-id', 'concert-id'),
     ).resolves.toEqual({
       id: 'reservation-id',
       status: 'RESERVED',
@@ -64,19 +75,20 @@ describe('ReservationsRepository', () => {
         id: 'reservation-id',
         userId: 'user-id',
         concertId: 'concert-id',
-        status: 'RESERVED',
       }),
     ).resolves.toBeUndefined();
     expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('updateReservationStatus_validPayload_executesUpdate', async () => {
-    executor.execute.mockResolvedValue({ rows: [] });
+  it('cancelActiveReservation_validPayload_returnsReservation', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'reservation-id', status: 'CANCELED' }] });
 
     await expect(
-      repository.updateReservationStatus(executor as never, 'reservation-id', 'CANCELED'),
-    ).resolves.toBeUndefined();
-    expect(executor.execute).toHaveBeenCalledTimes(1);
+      repository.cancelActiveReservation(executor as never, 'user-id', 'concert-id'),
+    ).resolves.toEqual({
+      id: 'reservation-id',
+      status: 'CANCELED',
+    });
   });
 
   it('insertReservationHistory_validPayload_executesInsert', async () => {
@@ -91,6 +103,12 @@ describe('ReservationsRepository', () => {
       }),
     ).resolves.toBeUndefined();
     expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('countHistoryRecords_existingRows_returnsCount', async () => {
+    db.execute.mockResolvedValue({ rows: [{ count: 2 }] });
+
+    await expect(repository.countHistoryRecords()).resolves.toBe(2);
   });
 
   it('listHistoryRecords_existingRows_returnsFlatHistoryRecords', async () => {
@@ -110,7 +128,7 @@ describe('ReservationsRepository', () => {
       ],
     });
 
-    const actualHistory = await repository.listHistoryRecords();
+    const actualHistory = await repository.listHistoryRecords({ limit: 20, offset: 0 });
 
     expect(actualHistory).toEqual([
       {

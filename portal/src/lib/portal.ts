@@ -15,7 +15,7 @@ export type ReservationHistory = {
   id: string;
   action: "RESERVE" | "CANCEL";
   actionAt: string;
-  user: Pick<AuthUser, "fullName" | "email">;
+  user: Pick<AuthUser, "id" | "fullName" | "email">;
   concert: { id: string; name: string };
 };
 

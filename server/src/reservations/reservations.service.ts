@@ -1,5 +1,12 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import {
+  getPagination,
+  type PaginatedResponse,
+  type PaginationQueryDto,
+} from '../common/dto/pagination-query.dto';
+import { AppException } from '../common/errors/app.exception';
+import { ErrorCode } from '../common/errors/error-code';
 import { DRIZZLE } from '../db/database.constants';
 import type { Database } from '../db/database.types';
 import type { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
@@ -14,35 +21,49 @@ export class ReservationsService {
 
   async reserveSeat(userId: string, concertId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      const concert = await this.reservationsRepository.findConcertForUpdate(tx, concertId);
+      const activeReservation = await this.reservationsRepository.findActiveReservationForUpdate(
+        tx,
+        userId,
+        concertId,
+      );
 
-      if (!concert) {
-        throw new NotFoundException('Concert not found');
+      if (activeReservation) {
+        throw new AppException(
+          ErrorCode.AlreadyReserved,
+          'Seat already reserved for this concert',
+          HttpStatus.CONFLICT,
+        );
       }
 
-      const reservedCount = await this.reservationsRepository.countReservedSeats(tx, concertId);
+      const seatClaimed = await this.reservationsRepository.decrementAvailableSeat(tx, concertId);
 
-      if (reservedCount >= Number(concert.totalSeat)) {
-        throw new ConflictException('Concert is fully booked');
+      if (!seatClaimed) {
+        const concert = await this.reservationsRepository.findConcert(tx, concertId);
+
+        if (!concert) {
+          throw new AppException(ErrorCode.ConcertNotFound, 'Concert not found', HttpStatus.NOT_FOUND);
+        }
+
+        throw new AppException(ErrorCode.ConcertSoldOut, 'Concert is fully booked', HttpStatus.CONFLICT);
       }
 
-      const reservation = await this.reservationsRepository.findReservationForUpdate(tx, userId, concertId);
-
-      if (reservation?.status === 'RESERVED') {
-        throw new ConflictException('Seat already reserved for this concert');
-      }
-
-      if (reservation) {
-        await this.reservationsRepository.updateReservationStatus(tx, reservation.id, 'RESERVED');
-      } else {
+      try {
         await this.reservationsRepository.insertReservation(tx, {
           id: randomUUID(),
           userId,
           concertId,
-          status: 'RESERVED',
         });
-      }
+      } catch (error) {
+        if (isActiveReservationUniqueViolation(error)) {
+          throw new AppException(
+            ErrorCode.AlreadyReserved,
+            'Seat already reserved for this concert',
+            HttpStatus.CONFLICT,
+          );
+        }
 
+        throw error;
+      }
       await this.reservationsRepository.insertReservationHistory(tx, {
         id: randomUUID(),
         userId,
@@ -54,19 +75,23 @@ export class ReservationsService {
 
   async cancelReservation(userId: string, concertId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      const concert = await this.reservationsRepository.findConcertForUpdate(tx, concertId);
+      const concert = await this.reservationsRepository.findConcert(tx, concertId);
 
       if (!concert) {
-        throw new NotFoundException('Concert not found');
+        throw new AppException(ErrorCode.ConcertNotFound, 'Concert not found', HttpStatus.NOT_FOUND);
       }
 
-      const reservation = await this.reservationsRepository.findReservationForUpdate(tx, userId, concertId);
+      const reservation = await this.reservationsRepository.cancelActiveReservation(tx, userId, concertId);
 
-      if (!reservation || reservation.status !== 'RESERVED') {
-        throw new ConflictException('No active reservation to cancel');
+      if (!reservation) {
+        throw new AppException(
+          ErrorCode.NoActiveReservation,
+          'No active reservation to cancel',
+          HttpStatus.CONFLICT,
+        );
       }
 
-      await this.reservationsRepository.updateReservationStatus(tx, reservation.id, 'CANCELED');
+      await this.reservationsRepository.incrementAvailableSeat(tx, concertId);
       await this.reservationsRepository.insertReservationHistory(tx, {
         id: randomUUID(),
         userId,
@@ -76,22 +101,59 @@ export class ReservationsService {
     });
   }
 
-  async listHistory(): Promise<ReservationHistoryResponseDto[]> {
-    const rows = await this.reservationsRepository.listHistoryRecords();
-
-    return rows.map((row) => ({
-      id: row.id,
-      action: row.action,
-      actionAt: row.actionAt,
-      user: {
-        id: row.userId,
-        fullName: row.fullName,
-        email: row.email,
-      },
-      concert: {
-        id: row.concertId,
-        name: row.concertName,
-      },
-    }));
+  async listHistory(query: PaginationQueryDto): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    return this.listHistoryRecords(query);
   }
+
+  async listMyHistory(
+    userId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    return this.listHistoryRecords(query, userId);
+  }
+
+  private async listHistoryRecords(
+    query: PaginationQueryDto,
+    userId?: string,
+  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    const pagination = getPagination(query);
+    const [rows, total] = await Promise.all([
+      this.reservationsRepository.listHistoryRecords(pagination, userId),
+      this.reservationsRepository.countHistoryRecords(userId),
+    ]);
+
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        action: row.action,
+        actionAt: row.actionAt,
+        user: {
+          id: row.userId,
+          fullName: row.fullName,
+          email: row.email,
+        },
+        concert: {
+          id: row.concertId,
+          name: row.concertName,
+        },
+      })),
+      meta: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
+  }
+}
+
+function isActiveReservationUniqueViolation(error: unknown): error is { code: string; constraint?: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === '23505' &&
+    'constraint' in error &&
+    error.constraint === 'reservations_active_user_concert_unique'
+  );
 }

@@ -1,8 +1,10 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { hash } from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import { UsersRepository } from './users.repository';
+import { AppException } from '../common/errors/app.exception';
+import { ErrorCode } from '../common/errors/error-code';
 
 const saltRound = process.env.BCRYPT_SALT_ROUNDS ?? 12;
 
@@ -23,7 +25,7 @@ export class UsersService {
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw new ConflictException('Email already exists');
+        throw new AppException(ErrorCode.DuplicateEmail, 'Email already exists', HttpStatus.CONFLICT);
       }
 
       throw error;

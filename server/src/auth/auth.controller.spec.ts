@@ -98,9 +98,7 @@ describe('AuthController', () => {
   it('me_authenticatedRequest_returnsJwtPayload', () => {
     const expectedUser = {
       sub: 'user-id',
-      email: 'user@example.com',
       role: UserRole.User,
-      iat: 1_766_000_000,
     };
 
     const actualUser = controller.me({ user: expectedUser });

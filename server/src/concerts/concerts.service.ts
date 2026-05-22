@@ -1,4 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  getPagination,
+  type PaginatedResponse,
+  type PaginationQueryDto,
+} from '../common/dto/pagination-query.dto';
 import type { CreateConcertDto } from './dto/create-concert.dto';
 import type { ConcertResponseDto } from './dto/concert-response.dto';
 import { ConcertsRepository } from './concerts.repository';
@@ -19,11 +24,42 @@ export class ConcertsService {
     }
   }
 
-  async listForAdmin(): Promise<ConcertResponseDto[]> {
-    return this.concertsRepository.listForAdmin();
+  async listForAdmin(query: PaginationQueryDto): Promise<PaginatedResponse<ConcertResponseDto>> {
+    const pagination = getPagination(query);
+    const [data, total] = await Promise.all([
+      this.concertsRepository.listForAdmin(pagination),
+      this.concertsRepository.countActive(),
+    ]);
+
+    return {
+      data,
+      meta: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
   }
 
-  async listForUser(userId: string): Promise<ConcertResponseDto[]> {
-    return this.concertsRepository.listForUser(userId);
+  async listForUser(
+    userId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ConcertResponseDto>> {
+    const pagination = getPagination(query);
+    const [data, total] = await Promise.all([
+      this.concertsRepository.listForUser(userId, pagination),
+      this.concertsRepository.countActive(),
+    ]);
+
+    return {
+      data,
+      meta: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
   }
 }

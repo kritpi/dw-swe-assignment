@@ -1,13 +1,36 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+
+export type ApiErrorBody = {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+  message?: string | string[];
+  statusCode?: number;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status?: number,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 function getApiErrorMessage(error: unknown): string {
   if (!axios.isAxiosError(error)) {
     return error instanceof Error ? error.message : "Something went wrong.";
   }
 
-  const message = error.response?.data?.message;
+  const data = error.response?.data as ApiErrorBody | undefined;
+  const message = data?.error?.message ?? data?.message;
 
   if (Array.isArray(message)) {
     return message.join(", ");
@@ -26,5 +49,19 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(new Error(getApiErrorMessage(error))),
+  (error) => {
+    if (!axios.isAxiosError(error)) {
+      return Promise.reject(error);
+    }
+
+    const data = error.response?.data as ApiErrorBody | undefined;
+    return Promise.reject(
+      new ApiError(
+        getApiErrorMessage(error),
+        data?.error?.code ?? "REQUEST_FAILED",
+        error.response?.status,
+        data?.error?.details,
+      ),
+    );
+  },
 );

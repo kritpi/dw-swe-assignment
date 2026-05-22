@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { UserLoginDto } from './dto/user-login-req.dto';
 import { LoginResponseDto } from './dto/user-login-res.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoginThrottleGuard } from './guards/login-throttle.guard';
 import type { AuthenticatedRequest } from './types/authenticated-request';
 import type { JwtPayload } from './types/jwt-payload';
 
@@ -20,6 +21,7 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @UseGuards(LoginThrottleGuard)
   @HttpCode(200)
   async login(
     @Body() loginDto: UserLoginDto,

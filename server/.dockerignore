@@ -1,6 +1,7 @@
 node_modules
 dist
-npm-debug.log
-.env
 coverage
-.git
+.env
+.env.local
+npm-debug.log*
+pnpm-lock.yaml

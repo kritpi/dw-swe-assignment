@@ -18,6 +18,15 @@ type ConcertRow = {
   reservationStatus?: ReservationStatus | null;
 };
 
+type CountRow = {
+  count: number;
+};
+
+type Pagination = {
+  limit: number;
+  offset: number;
+};
+
 @Injectable()
 export class ConcertsRepository {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
@@ -28,6 +37,7 @@ export class ConcertsRepository {
       name: dto.name,
       description: dto.description ?? null,
       totalSeat: dto.totalSeats,
+      availableSeats: dto.totalSeats,
       createdBy,
     });
   }
@@ -42,49 +52,56 @@ export class ConcertsRepository {
     return deletedRows.length > 0;
   }
 
-  async listForAdmin(): Promise<ConcertResponseDto[]> {
+  async countActive(): Promise<number> {
+    const result = await this.db.execute(sql<CountRow>`
+      select count(*)::int as count
+      from concerts
+      where deleted_at is null
+    `);
+
+    return Number(rowsOf<CountRow>(result.rows)[0]?.count ?? 0);
+  }
+
+  async listForAdmin(pagination: Pagination): Promise<ConcertResponseDto[]> {
     const result = await this.db.execute(sql<ConcertRow>`
       select
         c.id,
         c.name,
         c.description,
         c.total_seat as "totalSeats",
-        count(r.id)::int as "reservedSeats",
-        (c.total_seat - count(r.id))::int as "availableSeats",
+        (c.total_seat - c.available_seats)::int as "reservedSeats",
+        c.available_seats as "availableSeats",
         c.created_at as "createdAt"
       from concerts c
-      left join reservations r
-        on r.concert_id = c.id
-       and r.status = 'RESERVED'
       where c.deleted_at is null
-      group by c.id
       order by c.created_at desc
+      limit ${pagination.limit}
+      offset ${pagination.offset}
     `);
 
     return rowsOf<ConcertRow>(result.rows).map(toConcertResponse);
   }
 
-  async listForUser(userId: string): Promise<ConcertResponseDto[]> {
+  async listForUser(userId: string, pagination: Pagination): Promise<ConcertResponseDto[]> {
     const result = await this.db.execute(sql<ConcertRow>`
       select
         c.id,
         c.name,
         c.description,
         c.total_seat as "totalSeats",
-        count(active_r.id)::int as "reservedSeats",
-        (c.total_seat - count(active_r.id))::int as "availableSeats",
+        (c.total_seat - c.available_seats)::int as "reservedSeats",
+        c.available_seats as "availableSeats",
         c.created_at as "createdAt",
         user_r.status as "reservationStatus"
       from concerts c
-      left join reservations active_r
-        on active_r.concert_id = c.id
-       and active_r.status = 'RESERVED'
       left join reservations user_r
         on user_r.concert_id = c.id
        and user_r.user_id = ${userId}
+       and user_r.status = 'RESERVED'
       where c.deleted_at is null
-      group by c.id, user_r.status
       order by c.created_at desc
+      limit ${pagination.limit}
+      offset ${pagination.offset}
     `);
 
     return rowsOf<ConcertRow>(result.rows).map((row) => {

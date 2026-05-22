@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import * as t from 'drizzle-orm/pg-core';
 import { concerts } from './concerts';
 import { users } from './users';
@@ -22,7 +23,10 @@ export const reservations = t.pgTable(
     updatedAt: t.timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userConcert: t.unique('user_concert').on(table.userId, table.concertId),
+    activeUserConcert: t
+      .uniqueIndex('reservations_active_user_concert_unique')
+      .on(table.userId, table.concertId)
+      .where(sql`${table.status} = 'RESERVED'`),
   }),
 );
 

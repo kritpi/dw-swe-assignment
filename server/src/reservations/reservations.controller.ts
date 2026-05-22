@@ -1,8 +1,9 @@
-import { Controller, Delete, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
+import { PaginatedResponse, PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UserRole } from '../utils/user-role';
 import type { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
 import { ReservationsService } from './reservations.service';
@@ -34,7 +35,18 @@ export class ReservationsController {
 
   @Get('reservations/history')
   @Roles(UserRole.Admin)
-  listHistory(): Promise<ReservationHistoryResponseDto[]> {
-    return this.reservationsService.listHistory();
+  listHistory(
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    return this.reservationsService.listHistory(query);
+  }
+
+  @Get('me/reservations')
+  @Roles(UserRole.User)
+  listMyHistory(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    return this.reservationsService.listMyHistory(request.user.sub, query);
   }
 }

@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
+import { PaginatedResponse, PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UserRole } from '../utils/user-role';
 import { ConcertsService } from './concerts.service';
 import { CreateConcertDto } from './dto/create-concert.dto';
@@ -15,14 +16,17 @@ export class ConcertsController {
 
   @Get()
   @Roles(UserRole.User)
-  listForUser(@Req() request: AuthenticatedRequest): Promise<ConcertResponseDto[]> {
-    return this.concertsService.listForUser(request.user.sub);
+  listForUser(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ConcertResponseDto>> {
+    return this.concertsService.listForUser(request.user.sub, query);
   }
 
   @Get('admin')
   @Roles(UserRole.Admin)
-  listForAdmin(): Promise<ConcertResponseDto[]> {
-    return this.concertsService.listForAdmin();
+  listForAdmin(@Query() query: PaginationQueryDto): Promise<PaginatedResponse<ConcertResponseDto>> {
+    return this.concertsService.listForAdmin(query);
   }
 
   @Post()
