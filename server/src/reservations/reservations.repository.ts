@@ -1,9 +1,7 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
 import { DRIZZLE } from '../db/database.constants';
 import type { Database } from '../db/database.types';
-import type { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
 
 type ConcertLockRow = {
   id: string;
@@ -30,113 +28,85 @@ type HistoryRow = {
   concertName: string;
 };
 
+type QueryExecutor = Pick<Database, 'execute'>;
+
 @Injectable()
 export class ReservationsRepository {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
-  async reserveSeat(userId: string, concertId: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      const concertResult = await tx.execute(sql<ConcertLockRow>`
-        select id, total_seat as "totalSeat"
-        from concerts
-        where id = ${concertId}
-          and deleted_at is null
-        for update
-      `);
-      const concert = rowsOf<ConcertLockRow>(concertResult.rows)[0];
+  async findConcertForUpdate(executor: QueryExecutor, concertId: string): Promise<ConcertLockRow | null> {
+    const result = await executor.execute(sql<ConcertLockRow>`
+      select id, total_seat as "totalSeat"
+      from concerts
+      where id = ${concertId}
+        and deleted_at is null
+      for update
+    `);
 
-      if (!concert) {
-        throw new NotFoundException('Concert not found');
-      }
-
-      const reservedResult = await tx.execute(sql<CountRow>`
-        select count(*)::int as count
-        from reservations
-        where concert_id = ${concertId}
-          and status = 'RESERVED'
-      `);
-      const reservedCount = Number(rowsOf<CountRow>(reservedResult.rows)[0]?.count ?? 0);
-
-      if (reservedCount >= Number(concert.totalSeat)) {
-        throw new ConflictException('Concert is fully booked');
-      }
-
-      const reservationResult = await tx.execute(sql<ReservationRow>`
-        select id, status
-        from reservations
-        where user_id = ${userId}
-          and concert_id = ${concertId}
-        for update
-      `);
-      const reservation = rowsOf<ReservationRow>(reservationResult.rows)[0];
-
-      if (reservation?.status === 'RESERVED') {
-        throw new ConflictException('Seat already reserved for this concert');
-      }
-
-      if (reservation) {
-        await tx.execute(sql`
-          update reservations
-          set status = 'RESERVED',
-              updated_at = now()
-          where id = ${reservation.id}
-        `);
-      } else {
-        await tx.execute(sql`
-          insert into reservations (id, user_id, concert_id, status)
-          values (${randomUUID()}, ${userId}, ${concertId}, 'RESERVED')
-        `);
-      }
-
-      await tx.execute(sql`
-        insert into reservation_history (id, user_id, concert_id, action)
-        values (${randomUUID()}, ${userId}, ${concertId}, 'RESERVE')
-      `);
-    });
+    return rowsOf<ConcertLockRow>(result.rows)[0] ?? null;
   }
 
-  async cancelReservation(userId: string, concertId: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      const concertResult = await tx.execute(sql<ConcertLockRow>`
-        select id, total_seat as "totalSeat"
-        from concerts
-        where id = ${concertId}
-          and deleted_at is null
-        for update
-      `);
+  async countReservedSeats(executor: QueryExecutor, concertId: string): Promise<number> {
+    const result = await executor.execute(sql<CountRow>`
+      select count(*)::int as count
+      from reservations
+      where concert_id = ${concertId}
+        and status = 'RESERVED'
+    `);
 
-      if (!rowsOf<ConcertLockRow>(concertResult.rows)[0]) {
-        throw new NotFoundException('Concert not found');
-      }
-
-      const reservationResult = await tx.execute(sql<ReservationRow>`
-        select id, status
-        from reservations
-        where user_id = ${userId}
-          and concert_id = ${concertId}
-        for update
-      `);
-      const reservation = rowsOf<ReservationRow>(reservationResult.rows)[0];
-
-      if (!reservation || reservation.status !== 'RESERVED') {
-        throw new ConflictException('No active reservation to cancel');
-      }
-
-      await tx.execute(sql`
-        update reservations
-        set status = 'CANCELED',
-            updated_at = now()
-        where id = ${reservation.id}
-      `);
-
-      await tx.execute(sql`
-        insert into reservation_history (id, user_id, concert_id, action)
-        values (${randomUUID()}, ${userId}, ${concertId}, 'CANCEL')
-      `);
-    });
+    return Number(rowsOf<CountRow>(result.rows)[0]?.count ?? 0);
   }
 
-  async listHistory(): Promise<ReservationHistoryResponseDto[]> {
+  async findReservationForUpdate(
+    executor: QueryExecutor,
+    userId: string,
+    concertId: string,
+  ): Promise<ReservationRow | null> {
+    const result = await executor.execute(sql<ReservationRow>`
+      select id, status
+      from reservations
+      where user_id = ${userId}
+        and concert_id = ${concertId}
+      for update
+    `);
+
+    return rowsOf<ReservationRow>(result.rows)[0] ?? null;
+  }
+
+  async insertReservation(
+    executor: QueryExecutor,
+    reservation: { id: string; userId: string; concertId: string; status: ReservationRow['status'] },
+  ): Promise<void> {
+    await executor.execute(sql`
+      insert into reservations (id, user_id, concert_id, status)
+      values (${reservation.id}, ${reservation.userId}, ${reservation.concertId}, ${reservation.status})
+    `);
+  }
+
+  async updateReservationStatus(
+    executor: QueryExecutor,
+    reservationId: string,
+    status: ReservationRow['status'],
+  ): Promise<void> {
+    await executor.execute(sql`
+      update reservations
+      set status = ${status},
+          updated_at = now()
+      where id = ${reservationId}
+    `);
+  }
+
+  async insertReservationHistory(
+    executor: QueryExecutor,
+    history: { id: string; userId: string; concertId: string; action: HistoryRow['action'] },
+  ): Promise<void> {
+    await executor.execute(sql`
+      insert into reservation_history (id, user_id, concert_id, action)
+      values (${history.id}, ${history.userId}, ${history.concertId}, ${history.action})
+    `);
+  }
+
+  async listHistoryRecords(): Promise<HistoryRow[]> {
     const result = await this.db.execute(sql<HistoryRow>`
       select
         h.id,
@@ -153,20 +123,7 @@ export class ReservationsRepository {
       order by h.action_at desc
     `);
 
-    return rowsOf<HistoryRow>(result.rows).map((row) => ({
-      id: row.id,
-      action: row.action,
-      actionAt: row.actionAt,
-      user: {
-        id: row.userId,
-        fullName: row.fullName,
-        email: row.email,
-      },
-      concert: {
-        id: row.concertId,
-        name: row.concertName,
-      },
-    }));
+    return rowsOf<HistoryRow>(result.rows);
   }
 }
 

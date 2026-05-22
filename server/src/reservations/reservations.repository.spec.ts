@@ -1,108 +1,99 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ReservationsRepository } from './reservations.repository';
 
 describe('ReservationsRepository', () => {
   let repository: ReservationsRepository;
-  let db: { execute: jest.Mock; transaction: jest.Mock };
-  let tx: { execute: jest.Mock };
+  let db: { execute: jest.Mock };
+  let executor: { execute: jest.Mock };
 
   beforeEach(() => {
-    tx = {
+    executor = {
       execute: jest.fn(),
     };
     db = {
       execute: jest.fn(),
-      transaction: jest.fn((callback: (transaction: typeof tx) => Promise<void>) => callback(tx)),
     };
     repository = new ReservationsRepository(db as never);
   });
 
-  it('reserveSeat_missingConcert_throwsNotFoundException', async () => {
-    tx.execute.mockResolvedValueOnce({ rows: [] });
+  it('findConcertForUpdate_missingConcert_returnsNull', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.reserveSeat('user-id', 'missing-concert')).rejects.toThrow(NotFoundException);
-
-    expect(tx.execute).toHaveBeenCalledTimes(1);
+    await expect(repository.findConcertForUpdate(executor as never, 'missing-concert')).resolves.toBeNull();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('reserveSeat_fullConcert_throwsConflictException', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 2 }] });
+  it('findConcertForUpdate_existingConcert_returnsLockedConcert', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'concert-id', totalSeat: 2 }] });
 
-    await expect(repository.reserveSeat('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-
-    expect(tx.execute).toHaveBeenCalledTimes(2);
+    await expect(repository.findConcertForUpdate(executor as never, 'concert-id')).resolves.toEqual({
+      id: 'concert-id',
+      totalSeat: 2,
+    });
   });
 
-  it('reserveSeat_alreadyReserved_throwsConflictException', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'reservation-id', status: 'RESERVED' }] });
+  it('countReservedSeats_existingReservations_returnsCount', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ count: 2 }] });
 
-    await expect(repository.reserveSeat('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-
-    expect(tx.execute).toHaveBeenCalledTimes(3);
+    await expect(repository.countReservedSeats(executor as never, 'concert-id')).resolves.toBe(2);
   });
 
-  it('reserveSeat_canceledReservation_updatesReservationAndCreatesHistory', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'reservation-id', status: 'CANCELED' }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+  it('findReservationForUpdate_missingReservation_returnsNull', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.reserveSeat('user-id', 'concert-id')).resolves.toBeUndefined();
-
-    expect(tx.execute).toHaveBeenCalledTimes(5);
+    await expect(
+      repository.findReservationForUpdate(executor as never, 'user-id', 'concert-id'),
+    ).resolves.toBeNull();
   });
 
-  it('reserveSeat_newReservation_insertsReservationAndCreatesHistory', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+  it('findReservationForUpdate_existingReservation_returnsReservation', async () => {
+    executor.execute.mockResolvedValue({ rows: [{ id: 'reservation-id', status: 'RESERVED' }] });
 
-    await expect(repository.reserveSeat('user-id', 'concert-id')).resolves.toBeUndefined();
-
-    expect(tx.execute).toHaveBeenCalledTimes(5);
+    await expect(
+      repository.findReservationForUpdate(executor as never, 'user-id', 'concert-id'),
+    ).resolves.toEqual({
+      id: 'reservation-id',
+      status: 'RESERVED',
+    });
   });
 
-  it('cancelReservation_missingConcert_throwsNotFoundException', async () => {
-    tx.execute.mockResolvedValueOnce({ rows: [] });
+  it('insertReservation_validPayload_executesInsert', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.cancelReservation('user-id', 'missing-concert')).rejects.toThrow(NotFoundException);
-
-    expect(tx.execute).toHaveBeenCalledTimes(1);
+    await expect(
+      repository.insertReservation(executor as never, {
+        id: 'reservation-id',
+        userId: 'user-id',
+        concertId: 'concert-id',
+        status: 'RESERVED',
+      }),
+    ).resolves.toBeUndefined();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('cancelReservation_withoutActiveReservation_throwsConflictException', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'reservation-id', status: 'CANCELED' }] });
+  it('updateReservationStatus_validPayload_executesUpdate', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.cancelReservation('user-id', 'concert-id')).rejects.toThrow(ConflictException);
-
-    expect(tx.execute).toHaveBeenCalledTimes(2);
+    await expect(
+      repository.updateReservationStatus(executor as never, 'reservation-id', 'CANCELED'),
+    ).resolves.toBeUndefined();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('cancelReservation_activeReservation_updatesReservationAndCreatesHistory', async () => {
-    tx.execute
-      .mockResolvedValueOnce({ rows: [{ id: 'concert-id', totalSeat: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'reservation-id', status: 'RESERVED' }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+  it('insertReservationHistory_validPayload_executesInsert', async () => {
+    executor.execute.mockResolvedValue({ rows: [] });
 
-    await expect(repository.cancelReservation('user-id', 'concert-id')).resolves.toBeUndefined();
-
-    expect(tx.execute).toHaveBeenCalledTimes(4);
+    await expect(
+      repository.insertReservationHistory(executor as never, {
+        id: 'history-id',
+        userId: 'user-id',
+        concertId: 'concert-id',
+        action: 'CANCEL',
+      }),
+    ).resolves.toBeUndefined();
+    expect(executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('listHistory_existingRows_returnsNestedHistoryResponse', async () => {
+  it('listHistoryRecords_existingRows_returnsFlatHistoryRecords', async () => {
     const actionAt = new Date('2026-01-01T00:00:00.000Z');
     db.execute.mockResolvedValue({
       rows: [
@@ -119,22 +110,18 @@ describe('ReservationsRepository', () => {
       ],
     });
 
-    const actualHistory = await repository.listHistory();
+    const actualHistory = await repository.listHistoryRecords();
 
     expect(actualHistory).toEqual([
       {
         id: 'history-id',
         action: 'RESERVE',
         actionAt,
-        user: {
-          id: 'user-id',
-          fullName: 'Test User',
-          email: 'test@example.com',
-        },
-        concert: {
-          id: 'concert-id',
-          name: 'Live Night',
-        },
+        userId: 'user-id',
+        fullName: 'Test User',
+        email: 'test@example.com',
+        concertId: 'concert-id',
+        concertName: 'Live Night',
       },
     ]);
   });
