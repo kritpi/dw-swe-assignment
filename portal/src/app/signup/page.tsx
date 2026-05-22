@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import { PortalApp } from "../portal-client";
+import { redirect } from "next/navigation";
 
 export default function SignupPage() {
-  return (
-    <Suspense>
-      <PortalApp initialView="signup" />
-    </Suspense>
-  );
+  redirect("/register");
 }

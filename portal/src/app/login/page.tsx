@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { PortalApp } from "../portal-client";
+import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
   return (
     <Suspense>
-      <PortalApp initialView="login" />
+      <LoginForm />
     </Suspense>
   );
 }

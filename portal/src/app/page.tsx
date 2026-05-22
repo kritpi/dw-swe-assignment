@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { PortalApp } from "./portal-client";
+import { AccessLevelPage } from "@/components/portal/access-level-page";
 
 export default function HomePage() {
   return (
     <Suspense>
-      <PortalApp initialView="access" />
+      <AccessLevelPage />
     </Suspense>
   );
 }

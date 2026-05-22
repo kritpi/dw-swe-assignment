@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useLoginMutation } from "@/hooks/use-auth-mutations";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useCurrentUserMutation,
+  useLoginMutation,
+} from "@/hooks/use-auth-mutations";
 import { AuthShell } from "./auth-shell";
 import { Field } from "./field";
 import { ToastMessage } from "./toast-message";
 import {
+  getDashboardPath,
   getErrorMessage,
   getRoleLabel,
   normalizeRole,
@@ -15,10 +19,12 @@ import {
 } from "@/lib/auth";
 
 export function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const role = normalizeRole(searchParams.get("role"));
   const [toast, setToast] = useState<ToastState>(null);
   const loginMutation = useLoginMutation();
+  const currentUserMutation = useCurrentUserMutation();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,8 +38,13 @@ export function LoginForm() {
         password: String(form.get("password") ?? ""),
         role,
       });
+      const user = await currentUserMutation.mutateAsync();
 
-      setToast({ kind: "success", message: "Login successful." });
+      if (user.role !== role) {
+        throw new Error(`This account is registered as ${user.role}.`);
+      }
+
+      router.push(getDashboardPath(user.role));
     } catch (error) {
       setToast({ kind: "error", message: getErrorMessage(error) });
     }
@@ -52,8 +63,13 @@ export function LoginForm() {
             placeholder="Enter your Password"
             type="password"
           />
-          <button className="primary-button" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? "Please wait..." : `Login as ${getRoleLabel(role)}`}
+          <button
+            className="primary-button"
+            disabled={loginMutation.isPending || currentUserMutation.isPending}
+          >
+            {loginMutation.isPending || currentUserMutation.isPending
+              ? "Please wait..."
+              : `Login as ${getRoleLabel(role)}`}
           </button>
           <p className="form-switch">
             Don&apos;t have an account?

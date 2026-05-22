@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import type { LoginResponse, Role } from "@/lib/auth";
+import type { AuthUser, LoginResponse, Role } from "@/lib/auth";
 
 type LoginPayload = {
   email: string;
@@ -24,6 +24,11 @@ async function register(payload: RegisterPayload): Promise<void> {
   await apiClient.post("/users", payload);
 }
 
+async function getCurrentUser() {
+  const response = await apiClient.get<AuthUser>("/auth/me");
+  return response.data;
+}
+
 export function useLoginMutation() {
   return useMutation({
     mutationFn: login,
@@ -33,5 +38,11 @@ export function useLoginMutation() {
 export function useRegisterMutation() {
   return useMutation({
     mutationFn: register,
+  });
+}
+
+export function useCurrentUserMutation() {
+  return useMutation({
+    mutationFn: getCurrentUser,
   });
 }
