@@ -3,13 +3,14 @@ import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../utils/user-role';
-import { ConcertsController } from './concerts.controller';
+import { AdminConcertsController, ConcertsController } from './concerts.controller';
 import { ConcertsService } from './concerts.service';
 import type { ConcertResponseDto } from './dto/concert-response.dto';
 import type { CreateConcertDto } from './dto/create-concert.dto';
 
 describe('ConcertsController', () => {
   let controller: ConcertsController;
+  let adminController: AdminConcertsController;
   let concertsService: {
     create: jest.Mock;
     delete: jest.Mock;
@@ -26,7 +27,7 @@ describe('ConcertsController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [ConcertsController],
+      controllers: [ConcertsController, AdminConcertsController],
       providers: [
         {
           provide: ConcertsService,
@@ -41,10 +42,21 @@ describe('ConcertsController', () => {
       .compile();
 
     controller = module.get<ConcertsController>(ConcertsController);
+    adminController = module.get<AdminConcertsController>(AdminConcertsController);
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+    expect(adminController).toBeDefined();
+  });
+
+  it('routes_areMountedOnExpectedPaths', () => {
+    expect(Reflect.getMetadata('path', ConcertsController)).toBe('concerts');
+    expect(Reflect.getMetadata('path', ConcertsController.prototype.listForUser)).toBe('/');
+    expect(Reflect.getMetadata('path', AdminConcertsController)).toBe('admin/concerts');
+    expect(Reflect.getMetadata('path', AdminConcertsController.prototype.listForAdmin)).toBe('/');
+    expect(Reflect.getMetadata('path', AdminConcertsController.prototype.create)).toBe('/');
+    expect(Reflect.getMetadata('path', AdminConcertsController.prototype.delete)).toBe(':id');
   });
 
   it('listForUser_authenticatedUser_returnsUserConcerts', async () => {
@@ -63,7 +75,7 @@ describe('ConcertsController', () => {
     concertsService.listForAdmin.mockResolvedValue(expectedConcerts);
 
     const query = { page: 1, limit: 20 };
-    const actualConcerts = await controller.listForAdmin(query);
+    const actualConcerts = await adminController.listForAdmin(query);
 
     expect(actualConcerts).toBe(expectedConcerts);
     expect(concertsService.listForAdmin).toHaveBeenCalledWith(query);
@@ -76,13 +88,13 @@ describe('ConcertsController', () => {
       totalSeats: 100,
     };
 
-    await expect(controller.create(dto, createRequest('admin-id'))).resolves.toBeUndefined();
+    await expect(adminController.create(dto, createRequest('admin-id'))).resolves.toBeUndefined();
 
     expect(concertsService.create).toHaveBeenCalledWith(dto, 'admin-id');
   });
 
   it('delete_existingConcert_delegatesToService', async () => {
-    await expect(controller.delete('concert-id')).resolves.toBeUndefined();
+    await expect(adminController.delete('concert-id')).resolves.toBeUndefined();
 
     expect(concertsService.delete).toHaveBeenCalledWith('concert-id');
   });

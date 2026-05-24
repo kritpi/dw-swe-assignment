@@ -3,12 +3,13 @@ import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../utils/user-role';
-import { ReservationsController } from './reservations.controller';
+import { AdminReservationsController, ReservationsController } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
 import type { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
 
 describe('ReservationsController', () => {
   let controller: ReservationsController;
+  let adminController: AdminReservationsController;
   let reservationsService: {
     reserveSeat: jest.Mock;
     cancelReservation: jest.Mock;
@@ -25,7 +26,7 @@ describe('ReservationsController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [ReservationsController],
+      controllers: [ReservationsController, AdminReservationsController],
       providers: [
         {
           provide: ReservationsService,
@@ -40,10 +41,27 @@ describe('ReservationsController', () => {
       .compile();
 
     controller = module.get<ReservationsController>(ReservationsController);
+    adminController = module.get<AdminReservationsController>(AdminReservationsController);
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+    expect(adminController).toBeDefined();
+  });
+
+  it('routes_areMountedOnExpectedPaths', () => {
+    expect(Reflect.getMetadata('path', ReservationsController)).toBe('reservations');
+    expect(Reflect.getMetadata('path', ReservationsController.prototype.reserveSeat)).toBe(
+      'concerts/:concertId',
+    );
+    expect(Reflect.getMetadata('path', ReservationsController.prototype.cancelReservation)).toBe(
+      'concerts/:concertId',
+    );
+    expect(Reflect.getMetadata('path', ReservationsController.prototype.listMyHistory)).toBe('me');
+    expect(Reflect.getMetadata('path', AdminReservationsController)).toBe('admin/reservations');
+    expect(Reflect.getMetadata('path', AdminReservationsController.prototype.listHistory)).toBe(
+      'history',
+    );
   });
 
   it('reserveSeat_authenticatedUser_delegatesToService', async () => {
@@ -78,7 +96,7 @@ describe('ReservationsController', () => {
     reservationsService.listHistory.mockResolvedValue(expectedHistory);
 
     const query = { page: 1, limit: 20 };
-    const actualHistory = await controller.listHistory(query);
+    const actualHistory = await adminController.listHistory(query);
 
     expect(actualHistory).toBe(expectedHistory);
     expect(reservationsService.listHistory).toHaveBeenCalledWith(query);

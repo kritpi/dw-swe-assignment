@@ -32,16 +32,16 @@ import { UserRole } from '../utils/user-role';
 import { ReservationHistoryResponseDto } from './dto/reservation-history-response.dto';
 import { ReservationsService } from './reservations.service';
 
-@Controller()
+@Controller('reservations')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.User)
 @ApiTags('Reservations')
 @ApiCookieAuth()
 @ApiExtraModels(ReservationHistoryResponseDto, PaginationMetaDto)
 export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
-  @Post('concerts/:concertId/reservations')
-  @Roles(UserRole.User)
+  @Post('concerts/:concertId')
   @HttpCode(204)
   @ApiOperation({ summary: 'Reserve a seat for a concert' })
   @ApiParam({ name: 'concertId', description: 'Concert id' })
@@ -53,8 +53,7 @@ export class ReservationsController {
     await this.reservationsService.reserveSeat(request.user.sub, concertId);
   }
 
-  @Delete('concerts/:concertId/reservations')
-  @Roles(UserRole.User)
+  @Delete('concerts/:concertId')
   @HttpCode(204)
   @ApiOperation({ summary: 'Cancel the authenticated user reservation for a concert' })
   @ApiParam({ name: 'concertId', description: 'Concert id' })
@@ -66,25 +65,7 @@ export class ReservationsController {
     await this.reservationsService.cancelReservation(request.user.sub, concertId);
   }
 
-  @Get('reservations/history')
-  @Roles(UserRole.Admin)
-  @ApiOperation({ summary: 'List all reservation history entries' })
-  @ApiOkResponse({
-    schema: {
-      properties: {
-        data: { type: 'array', items: { $ref: getSchemaPath(ReservationHistoryResponseDto) } },
-        meta: { $ref: getSchemaPath(PaginationMetaDto) },
-      },
-    },
-  })
-  listHistory(
-    @Query() query: PaginationQueryDto,
-  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
-    return this.reservationsService.listHistory(query);
-  }
-
-  @Get('me/reservations')
-  @Roles(UserRole.User)
+  @Get('me')
   @ApiOperation({ summary: 'List the authenticated user reservation history' })
   @ApiOkResponse({
     schema: {
@@ -99,5 +80,31 @@ export class ReservationsController {
     @Query() query: PaginationQueryDto,
   ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
     return this.reservationsService.listMyHistory(request.user.sub, query);
+  }
+}
+
+@Controller('admin/reservations')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.Admin)
+@ApiTags('Admin Reservations')
+@ApiCookieAuth()
+@ApiExtraModels(ReservationHistoryResponseDto, PaginationMetaDto)
+export class AdminReservationsController {
+  constructor(private readonly reservationsService: ReservationsService) {}
+
+  @Get('history')
+  @ApiOperation({ summary: 'List all reservation history entries' })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        data: { type: 'array', items: { $ref: getSchemaPath(ReservationHistoryResponseDto) } },
+        meta: { $ref: getSchemaPath(PaginationMetaDto) },
+      },
+    },
+  })
+  listHistory(
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<ReservationHistoryResponseDto>> {
+    return this.reservationsService.listHistory(query);
   }
 }

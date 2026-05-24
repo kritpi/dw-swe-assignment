@@ -42,7 +42,7 @@ async function getUserConcerts() {
 }
 
 async function getAdminConcerts() {
-  const response = await apiClient.get<PaginatedResponse<Concert>>("/concerts/admin", {
+  const response = await apiClient.get<PaginatedResponse<Concert>>("/admin/concerts", {
     params: defaultPage,
   });
   return response.data.data;
@@ -50,7 +50,7 @@ async function getAdminConcerts() {
 
 async function getReservationHistory() {
   const response = await apiClient.get<PaginatedResponse<ReservationHistory>>(
-    "/reservations/history",
+    "/admin/reservations/history",
     { params: defaultPage },
   );
   return response.data.data;
@@ -58,26 +58,26 @@ async function getReservationHistory() {
 
 async function getMyReservationHistory() {
   const response = await apiClient.get<PaginatedResponse<ReservationHistory>>(
-    "/me/reservations",
+    "/reservations/me",
     { params: defaultPage },
   );
   return response.data.data;
 }
 
 async function createConcert(payload: CreateConcertPayload) {
-  await apiClient.post("/concerts", payload);
+  await apiClient.post("/admin/concerts", payload);
 }
 
 async function deleteConcert(concertId: string) {
-  await apiClient.delete(`/concerts/${concertId}`);
+  await apiClient.delete(`/admin/concerts/${concertId}`);
 }
 
 async function reserveSeat(concertId: string) {
-  await apiClient.post(`/concerts/${concertId}/reservations`);
+  await apiClient.post(`/reservations/concerts/${concertId}`);
 }
 
 async function cancelReservation(concertId: string) {
-  await apiClient.delete(`/concerts/${concertId}/reservations`);
+  await apiClient.delete(`/reservations/concerts/${concertId}`);
 }
 
 export function useUserConcerts() {

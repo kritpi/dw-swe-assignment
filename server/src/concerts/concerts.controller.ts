@@ -37,6 +37,7 @@ import { ConcertResponseDto } from './dto/concert-response.dto';
 
 @Controller('concerts')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.User)
 @ApiTags('Concerts')
 @ApiCookieAuth()
 @ApiExtraModels(ConcertResponseDto, PaginationMetaDto)
@@ -44,7 +45,6 @@ export class ConcertsController {
   constructor(private readonly concertsService: ConcertsService) {}
 
   @Get()
-  @Roles(UserRole.User)
   @ApiOperation({ summary: 'List concerts available to the authenticated user' })
   @ApiOkResponse({
     schema: {
@@ -60,9 +60,18 @@ export class ConcertsController {
   ): Promise<PaginatedResponse<ConcertResponseDto>> {
     return this.concertsService.listForUser(request.user.sub, query);
   }
+}
 
-  @Get('admin')
-  @Roles(UserRole.Admin)
+@Controller('admin/concerts')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.Admin)
+@ApiTags('Admin Concerts')
+@ApiCookieAuth()
+@ApiExtraModels(ConcertResponseDto, PaginationMetaDto)
+export class AdminConcertsController {
+  constructor(private readonly concertsService: ConcertsService) {}
+
+  @Get()
   @ApiOperation({ summary: 'List concerts for administrators' })
   @ApiOkResponse({
     schema: {
@@ -77,7 +86,6 @@ export class ConcertsController {
   }
 
   @Post()
-  @Roles(UserRole.Admin)
   @ApiOperation({ summary: 'Create a concert' })
   @ApiCreatedResponse({ description: 'Concert created.' })
   async create(@Body() dto: CreateConcertDto, @Req() request: AuthenticatedRequest): Promise<void> {
@@ -85,7 +93,6 @@ export class ConcertsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.Admin)
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a concert' })
   @ApiParam({ name: 'id', description: 'Concert id' })
